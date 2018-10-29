@@ -73,6 +73,7 @@ namespace Euler
 
             Console.WriteLine("passcount = " + passcount);
             Console.WriteLine("sumint = " + sumint);
+            Console.Read();
             
         }       
     }
@@ -298,153 +299,117 @@ namespace Euler
      *  Each has "dimension" coodinates, indexed by the second index
      */
     {
-        int dimension;
-        double[,] verticies;
-        bool[] covered;
+        public int dimension;
+        public List<Vertex> verticies;
+        public bool[] covered;
 
         public Simplex(double[,] verts)
         {
-            this.verticies = (double[,])verts.Clone();
             this.dimension = verts.GetLength(0) - 1;
+            double[] coord = new double[dimension + 1];
+            this.verticies = new List<Vertex>();
+            for(int i = 0; i <= dimension; i++)
+            {
+                for(int j = 0; j < dimension; j++)
+                {
+                    coord[j] = verts[i, j];
+                }
+                this.verticies.Add(new Vertex(coord));
+            }           
+            this.covered = new bool[dimension + 1];
+        }
+
+        public Simplex(List<Vertex> verts)
+        {
+            this.dimension = verts.Count - 1;
+            this.verticies = new List<Vertex>();
+            foreach (Vertex vert in verts)
+            {
+                this.verticies.Add(vert.Clone());
+            }
             this.covered = new bool[dimension + 1];
         }
 
         /*  Returns the "dimension"-1 simplex that is the intersection
          *  of this simplex with the plane with "dimention"th coordinate xn
          */
-        public Simplex[] Cull(double xn)
+        public List<Simplex> Cull(double xn)
         {
             int dimind = this.dimension - 1;
             double epsilon = 0.00000000001;
 
-            double[,] subverts = new double[(this.dimension*this.dimension+1)/2, this.dimension - 1];
+            List<Vertex> subverts = new List<Vertex>();
 
-            int ind = 0;
             double xi1n, xi2n, t;
             for (int i1 = 0; i1 < dimension; i1++)
             {
-                xi1n = this.verticies[i1, dimind];
+                xi1n = this.verticies[i1].coord[dimind];
                 for (int i2 = i1 + 1; i2 < dimension + 1; i2++)
                 {
-                    xi2n = this.verticies[i2, dimind];
+                    xi2n = this.verticies[i2].coord[dimind];
                     if ((xn - xi1n) * (xn - xi2n) < 0 && Math.Abs(xn - xi1n) > epsilon && Math.Abs(xn - xi2n) > epsilon) // Check if the "i1"th and "i2"th vertex lie on opposite sides of the plane
                     {
                         t = (xn - xi2n) / (xi1n - xi2n);
+                        double[] subvert = new double[dimension];
                         for (int j = 0; j < dimind; j++)
                         {
-                            subverts[ind, j] = Math.Round(t * this.verticies[i1, j] + (1 - t) * this.verticies[i2, j]);
+                            subvert[j] = Math.Round(t * this.verticies[i1].coord[j] + (1 - t) * this.verticies[i2].coord[j]);
                         }
-                        ind++;
+                        subverts.Add(new Vertex(subvert));
                     } else if (Math.Abs(xn - xi1n) < epsilon && i2 == dimension) // Each equality case only gets stored once
                     {
+                        double[] subvert = new double[dimension];
                         for (int j = 0; j < dimind; j++)
                         {
-                            subverts[ind, j] = this.verticies[i1, j];
+                            subvert[j] = this.verticies[i1].coord[j];
                         }
-                        ind++;
+                        subverts.Add(new Vertex(subvert));
                     } else if (Math.Abs(xn - xi2n) < epsilon && i1 == dimension - 1)
                     {
+                        double[] subvert = new double[dimension];
                         for (int j = 0; j < dimind; j++)
                         {
-                            subverts[ind, j] = this.verticies[i2, j];
+                            subvert[j] = this.verticies[i2].coord[j];
                         }
-                        ind++;
+                        subverts.Add(new Vertex(subvert));
                     }
                 }
             }
 
-            int vertcount = 0;
-            for (int i = 0; i < subverts.GetLength(0); i++)
-            {
-                if (subverts[i, 0] != 0) vertcount++;  // No vertex will ever have a 0 coordinate (at least in this problem)
-            }
+            int vertcount = subverts.Count;
 
-            if (vertcount - dimension > 2)
-            {
-                Console.WriteLine("Many things!");
-            }
-
-
-            Simplex[] culled;
-            double[,] cullverts = new double[dimind + 1, dimind];
-
+            List<Simplex> culled = new List<Simplex>();
+ 
             if (vertcount > dimension)
             {
                 // Triangulate Convex Hull
-                int culledsize = 1;
-                for (int i = 1; i <= vertcount; i++) culledsize *= i;
-                for (int i = 1; i <= vertcount - dimension; i++) culledsize /= i;
-                for (int i = 1; i <= dimension; i++) culledsize /= i;
-                culled = new Simplex[culledsize];
-                int[] index = new int[dimension];
-                bool newvert = true;
-                for (int i = 1; i < dimension; i++)
+                subverts.Sort();
+                List<Vertex> seedsimplex = new List<Vertex>();
+                for(int i = 0; i < dimension; i++)
                 {
-                    while (index[i] <= index[i - 1]) index[i]++;
+                    seedsimplex.Add(subverts[i]);
                 }
-                int i0 = 0;
-                while (newvert)
+                subverts.RemoveRange(0, dimension);
+
+                culled.Add(new Simplex(seedsimplex));
+
+                foreach (Vertex vert in subverts)
                 {
-                    newvert = false;
-                    for (int i = 0; i < dimension; i++)
-                    {
-                        for (int j = 0; j < dimind; j++)
-                        {
-                            cullverts[i, j] = subverts[index[i], j];
-                        }
-                    }
-                    culled[i0] = new Simplex(cullverts);
-                    i0++;
-                    for (int i = dimind; i >= 0; i--)
-                    {
-                        if (index[i] < vertcount - 1 && (i == dimind || index[i] < index[i + 1] - 1))
-                        {
-                            index[i]++;
-                            newvert = true;
-                            break;
-                        }
-                        else if (i > 0 && index[i] > index[i - 1] + 1)
-                        {
-                            index[i - 1]++;
-                            for (int j = i; j <= dimind; j++)
-                            {
-                                index[j] = index[j - 1] + 1;
-                            }
-                            newvert = true;
-                            break;
-                        }
-                    }
+                    vert.PointToHull(culled);
                 }
-            } else if (vertcount < dimension)
+            } else if (subverts.Count < dimension)
             {
-                culled = new Simplex[1];
-                for (int i = 0; i < dimension; i++)
+                for (int i = vertcount; i < dimension; i++)
                 {
                     // If too few verticies have been found, duplicate the last vertex
                     // No vertex will ever have a 0 coordinate (at least in this problem)
-                    int fill = 0;
-                    while (Math.Abs(subverts[i - fill, 0]) < epsilon)
-                    {
-                        fill++;
-                    }
-                    for (int j = 0; j < dimind; j++)
-                    {
-                        cullverts[i, j] = subverts[i - fill, j];
-                    }
+                    subverts.Add(subverts[vertcount - 1].Clone());
                 }
-                culled[0] = new Simplex(cullverts);
+                culled.Add(new Simplex(subverts));
             }
             else
             {
-                culled = new Simplex[1];
-                for (int i = 0; i < dimension; i++)
-                {
-                    for (int j = 0; j < dimind; j++)
-                    {
-                        cullverts[i, j] = subverts[i, j];
-                    }
-                }
-                culled[0] = new Simplex(cullverts);
+                culled.Add(new Simplex(subverts));
             }
             return culled;
         }
@@ -454,8 +419,8 @@ namespace Euler
             double[] extremes = { double.MaxValue, double.MinValue };
             for (int i = 0; i < dimension + 1; i++)
             {
-                if (this.verticies[i, index] < extremes[0]) extremes[0] = this.verticies[i, index];
-                if (this.verticies[i, index] > extremes[1]) extremes[1] = this.verticies[i, index];
+                if (this.verticies[i].coord[index] < extremes[0]) extremes[0] = this.verticies[i].coord[index];
+                if (this.verticies[i].coord[index] > extremes[1]) extremes[1] = this.verticies[i].coord[index];
             }
             return extremes;
         }
@@ -482,14 +447,31 @@ namespace Euler
             }
             else
             {
+                List<Task> badidea = new List<Task>();
                 for (int i = start; i <= end; i++)
                 {
-                    Simplex[] culled = this.Cull(i);
-                    prepartial[0] = i;
-                    for (int j = 0; j < culled.Length; j++)
+                    var threadi = i;
+                    Task task = new Task(() =>
                     {
-                        culled[j].LatticePoints(prepartial,coords);
-                    }
+                        int[] postpartial = (int[])prepartial.Clone();
+                        postpartial[0] = threadi;
+                        List<Simplex> culled = this.Cull(threadi);
+                        HashSet<Polynomial> threadcoords = new HashSet<Polynomial>();
+                        foreach (Simplex slice in culled)
+                        {
+                            slice.LatticePoints(postpartial, threadcoords);
+                        }
+                        coords.UnionWith(threadcoords);
+                    });
+                    badidea.Add(task);
+                }
+                foreach (Task task in badidea)
+                {
+                    task.Start();
+                }
+                foreach (Task task in badidea)
+                {
+                    task.Wait();
                 }
             }
         }
@@ -503,9 +485,9 @@ namespace Euler
                 vertex = "( ";
                 for (int j = 0; j < this.dimension- 1; j++)
                 {
-                    vertex += this.verticies[i, j] + " , ";
+                    vertex += this.verticies[i].coord[j] + " , ";
                 }
-                vertex += this.verticies[i, this.dimension - 1] + " )";
+                vertex += this.verticies[i].coord[this.dimension - 1] + " )";
                 Console.WriteLine(vertex);
             }
         }
@@ -606,27 +588,160 @@ namespace Euler
 
         public override int GetHashCode()
         {
-            string polystring = this.ToString();
-            return polystring.GetHashCode();
+            int hash = this.coefficients.Length;
+            for (int i = 0; i < this.coefficients.Length; i++)
+            {
+                hash = unchecked(hash * 314159 + this.coefficients[i]);
+            }
+            return hash;
         }
     }
 
-    class Vertex
+    class Vertex : IComparable<Vertex>, IEquatable<Vertex>
     {
-        int[] coord;
+        public double[] coord;
         int dimension;
 
-        public Vertex(int[] coords)
+        public Vertex(double[] coords)
         {
-            dimension = coords.Length + 1;
-            coord = new int[dimension - 1];
+            dimension = coords.Length;
+            coord = new double[dimension];
             coords.CopyTo(coord, 0);
         }
 
-        // Assumes everthing has the same dimension
-        public void PointToHull(List<Simplex> hull, Vertex lastpoint)
+        public int CompareTo(Vertex vert)
         {
+            if (this.dimension != vert.dimension) return -1;
+            int i = 0;
+            while(i < dimension && vert.coord[i] == this.coord[i])
+            {
+                i++;
+            }
+            if (i == dimension)
+            {
+                return 0;
+            }
+            else if (this.coord[i] < vert.coord[i])
+            {
+                return -1;
+            }
+            else return 1;
+        }
 
+        public bool Equals(Vertex vert)
+        {
+            return (this.CompareTo(vert) == 0);
+        }
+
+        public override int GetHashCode()
+        {
+            return this.ToString().GetHashCode();
+        }
+
+        public Vertex Clone()
+        {
+            Vertex clone = new Vertex(this.coord);
+            return clone;
+        }
+
+        public override string ToString()
+        {
+            string output = "( ";
+            for (int i = 0; i < dimension - 1; i++)
+            {
+                output += this.coord[i].ToString() + " , ";
+            }
+            output += this.coord[dimension - 1].ToString() + " )";
+            return output;
+        }
+
+        // Assumes everthing has the same dimension
+        public void PointToHull(List<Simplex> hull)
+        {
+            List<Simplex> added = new List<Simplex>();
+            foreach(Simplex simplex in hull)
+            {
+                for (int i0 = 0; i0 < simplex.verticies.Count; i0++)
+                {
+                    if (!simplex.covered[i0]) 
+                    {
+                        /* Check where this point lies on the opposite side of the face of simplex not containing
+                         * simplex[i0] by calculating the signed volume of each simplex and comparing sign.
+                         */
+                        double[,] simplexsign = new double[simplex.dimension, simplex.dimension];
+                        double[,] pointsign = new double[simplex.dimension, simplex.dimension];
+                        int i = 0;
+                        while (i < i0)
+                        {
+                            for (int j = 0; j < simplex.dimension; j++)
+                            {
+                                simplexsign[i, j] = simplex.verticies[i].coord[j] - simplex.verticies[i0].coord[j];
+                                pointsign[i, j] = simplex.verticies[i].coord[j] - this.coord[j];
+                            }
+                            i++;
+                        }
+                        i++;
+                        while (i < simplex.dimension + 1)
+                        {
+                            for (int j = 0; j < simplex.dimension; j++)
+                            {
+                                simplexsign[i-1, j] = simplex.verticies[i].coord[j] - simplex.verticies[i0].coord[j];
+                                pointsign[i-1, j] = simplex.verticies[i].coord[j] - this.coord[j];
+                            }
+                            i++;
+                        }
+                        if ((new Matrix(simplexsign).RecudedForm())*(new Matrix(pointsign).RecudedForm()) <= 0)
+                        {
+                            List<Vertex> newsimplexverts = new List<Vertex>();
+                            for (int j = 0; j < simplex.dimension + 1; j++)
+                            {
+                                if (j != i0) newsimplexverts.Add(simplex.verticies[j]);
+                            }
+                            newsimplexverts.Add(this);
+                            Simplex newsimplex = new Simplex(newsimplexverts);
+                            newsimplex.covered[simplex.dimension] = true;
+
+                            // Check if the newly added simplex shares a d-2 face with another added simplex
+                            // We then know that the d-1 face with that as a subface and 'this' as the last
+                            // vertex is a common face between them.
+                            foreach(Simplex preadded in added)
+                            {
+                                bool shared = true;
+                                for (int j0 = 0; j0 < simplex.dimension; j0++)
+                                {
+                                    HashSet<int> indicies = new HashSet<int>();
+                                    for (int j = 0; j < simplex.dimension; j++)
+                                    {
+                                        indicies.Add(j);
+                                    }
+                                    for (int j = 0; j < simplex.dimension; j++)
+                                    {
+                                        if (j != j0 && j != i0)
+                                        {
+                                            if (!indicies.Remove(preadded.verticies.IndexOf(newsimplex.verticies[j]))) // Eliminates the index of the found vertex from the list of indicies
+                                            {
+                                                shared = false;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (shared)
+                                    {
+                                        newsimplex.covered[j0] = true;
+                                        foreach (int index in indicies)
+                                        {
+                                            preadded.covered[index] = true;
+                                        }
+                                    }
+                                }
+                            }
+                            added.Add(newsimplex);
+                            simplex.covered[i0] = true;
+                        }
+                    }
+                }
+            }
+            hull.AddRange(added);
         }
     }
 }
