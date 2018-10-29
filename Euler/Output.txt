@@ -1,0 +1,12 @@
+Found passing polynomial: 57 -91 x +51 x^2 -12 x^3 +1 x^4 
+Found passing polynomial: 58 -91 x +51 x^2 -12 x^3 +1 x^4 
+Found passing polynomial: 47 -84 x +50 x^2 -12 x^3 +1 x^4 
+Found passing polynomial: 55 -90 x +51 x^2 -12 x^3 +1 x^4 
+Found passing polynomial: 46 -84 x +50 x^2 -12 x^3 +1 x^4 
+Found passing polynomial: 36 -66 x +42 x^2 -11 x^3 +1 x^4 
+Found passing polynomial: 33 -65 x +42 x^2 -11 x^3 +1 x^4 
+Found passing polynomial: 34 -65 x +42 x^2 -11 x^3 +1 x^4 
+Found passing polynomial: 42 -71 x +43 x^2 -11 x^3 +1 x^4 
+Found passing polynomial: 39 -70 x +43 x^2 -11 x^3 +1 x^4 
+Found passing polynomial: 40 -70 x +43 x^2 -11 x^3 +1 x^4 
+Found passing polynomial: 24 -50 x +35 x^2 -10 x^3 +1 x^4 
