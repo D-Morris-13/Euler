@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -7,71 +8,59 @@ using System.Threading.Tasks;
 
 namespace Euler
 {
-    public static class Globals
-    {
-        public const int N = 7;
-        public static readonly int[] PRIMELIST = { 2, 3, 5, 7, 11, 13, 17, 19 , 23, 29, 31, 37, 41, 43, 47, 53 , 59, 61, 67, 71};
-    }
-
     class Program
     {
 
         static void Main(string[] args)
         {
-            double[,] matrix = new double[Globals.N + 1, Globals.N + 1];
-            for(int i = 0; i <= Globals.N; i++)
+            const int N = 7;
+            double[,] matrix = new double[N + 1, N + 1];
+            for(int i = 0; i <= N; i++)
             {
-                for (int j = 0; j <= Globals.N; j++)
+                for (int j = 0; j <= N; j++)
                 {
                     matrix[i, j] = 1;
                     for (int k = 1; k <= j; k++) matrix[i, j] *= (i + 1);
                 }
-                matrix[i, Globals.N] *= -1; // The cooefficient on x^n is fixed at 1, so the requirement that f(x) ~ 0 requires negating this term
+                matrix[i, N] *= -1; // The cooefficient on x^n is fixed at 1, so the requirement that f(x) ~ 0 requires negating this term
             }
             double modifier = 0;
-            for (int i = Globals.N; i >= 0; i--)
+            for (int i = N; i >= 0; i--)
             {
-                matrix[i, Globals.N] += modifier;
+                matrix[i, N] += modifier;
                 modifier *= -1;
             }
             Matrix polysystem = new Matrix(matrix);
             Simplex fullsimplex = polysystem.RegionalSimplex();
             fullsimplex.PrintSimplex();
-            HashSet<Polynomial> polys = new HashSet<Polynomial>();
-            fullsimplex.LatticePoints(new int[] { }, polys);
-            Console.WriteLine("Found Lattice Points");
+            double[,] simplexvectors = new double[N, N];
+            for (int i = 0; i < N; i++)
+            {
+                for (int j = 0; j < N; j++)
+                {
+                    simplexvectors[i, j] = fullsimplex.verticies[i].coord[j] - fullsimplex.verticies[N].coord[j];
+                }
+            }
+            Matrix simplexmatrix = new Matrix(simplexvectors);
+            Console.WriteLine("Approx volume = " + simplexmatrix.RecudedForm().ToString());
+            ConcurrentDictionary<int,int> polyshash = new ConcurrentDictionary<int, int>();
+            fullsimplex.LatticePoints(new int[] { }, polyshash);
+            Console.WriteLine("Found " + polyshash.Count.ToString() + " Lattice Points");
 
             long sumint = 0;
-            int passcount = 0;
 
             using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\Demo\source\repos\Euler\Euler\Output.txt"))
             {
-                foreach (Polynomial poly in polys)
+                foreach (KeyValuePair<int,int> enumerator in polyshash)
                 {
-                    bool pass = true;
-                    for (int i = 1; i < Globals.N + 1; i++)
-                    {
-                        if (!poly.RootCheck(i, i + 1)) pass = false;
-                    }
-                    if (pass)
-                    {
-                        string output = "Found passing polynomial: " + poly.ToString();
-                        //Console.WriteLine(output);
-                        file.WriteLine(output);
-                        sumint += poly.AbsCoeffSum();
-                        passcount++;
-                    }
-                    else
-                    {
-                        string output = "Found failing polynomial: " + poly.ToString();
-                        //Console.WriteLine(output);
-                        //file.WriteLine(output);
-                    }
-
+                    sumint += enumerator.Value;
                 }
+                
+                file.WriteLine("sumint = " + sumint);
+
             }
 
-            Console.WriteLine("passcount = " + passcount);
+            //Console.WriteLine("passcount = " + polyshash.Count);
             Console.WriteLine("sumint = " + sumint);
             Console.Read();
             
@@ -429,7 +418,7 @@ namespace Euler
          * The argument "partial" is used to pass the sum of all high coordinate dimensions down
          * to the current dimension
          */
-        public void LatticePoints(int[] partial, HashSet<Polynomial> coords)
+        public void LatticePoints(int[] partial, ConcurrentDictionary<int,int> coords)
         {
             double[] extremes = this.Extremes(this.dimension - 1);
             int start = (int)Math.Ceiling(extremes[0]);
@@ -442,7 +431,20 @@ namespace Euler
                 for (int i = start; i <= end; i++)
                 {
                     prepartial[0] = i;
-                    coords.Add(new Polynomial(prepartial,true));
+                    Polynomial poly = new Polynomial(prepartial,true);
+                    int hash = poly.GetHashCode();
+                    if (coords.TryAdd(hash, 0))
+                    {
+                        bool pass = true;
+                        for (int j = 1; j < poly.degree + 1; j++)
+                        {
+                            if (!poly.RootCheck(j, j + 1)) pass = false;
+                        }
+                        if (pass)
+                        {
+                            coords.TryUpdate(hash,poly.AbsCoeffSum(),0);
+                        }
+                    }
                 }
             }
             else
@@ -453,15 +455,13 @@ namespace Euler
                     var threadi = i;
                     Task task = new Task(() =>
                     {
-                        int[] postpartial = (int[])prepartial.Clone();
-                        postpartial[0] = threadi;
+                        int[] threadpartial = (int[])prepartial.Clone();
+                        threadpartial[0] = threadi;
                         List<Simplex> culled = this.Cull(threadi);
-                        HashSet<Polynomial> threadcoords = new HashSet<Polynomial>();
                         foreach (Simplex slice in culled)
                         {
-                            slice.LatticePoints(postpartial, threadcoords);
+                            slice.LatticePoints(threadpartial, coords);
                         }
-                        coords.UnionWith(threadcoords);
                     });
                     badidea.Add(task);
                 }
@@ -469,10 +469,7 @@ namespace Euler
                 {
                     task.Start();
                 }
-                foreach (Task task in badidea)
-                {
-                    task.Wait();
-                }
+                Task.WaitAll(badidea.ToArray());
             }
         }
 
